@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
 import { useApp } from '../contexts/AppContext';
 import { supabase } from '../lib/supabase';
-import { History, Eye, X, Users as UsersIcon } from 'lucide-react';
+import { History, Eye, X, Users as UsersIcon, Edit } from 'lucide-react';
+import EventForm from '../components/EventForm';
 
 export default function EventHistoryPage() {
   const { selectedCollege, selectedYear } = useApp();
@@ -10,6 +11,7 @@ export default function EventHistoryPage() {
   const [detail, setDetail] = useState(null);
   const [detailAttendees, setDetailAttendees] = useState([]);
   const [detailSpeakers, setDetailSpeakers] = useState([]);
+  const [editEventId, setEditEventId] = useState(null);
 
   useEffect(() => {
     fetchEvents();
@@ -78,6 +80,9 @@ export default function EventHistoryPage() {
                   <td>
                     <button className="btn btn-ghost btn-sm" onClick={() => openDetail(event)}>
                       <Eye size={14} /> View
+                    </button>
+                    <button className="btn btn-ghost btn-sm" style={{ color: 'var(--text-accent)' }} onClick={() => setEditEventId(event.id)}>
+                      <Edit size={14} /> Edit
                     </button>
                   </td>
                 </tr>
@@ -156,6 +161,29 @@ export default function EventHistoryPage() {
                   <p style={{ color: 'var(--text-muted)', fontSize: 'var(--font-sm)' }}>No attendance recorded</p>
                 )}
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* Edit Modal */}
+      {editEventId && (
+        <div className="modal-overlay" onClick={() => setEditEventId(null)}>
+          <div className="modal" onClick={e => e.stopPropagation()} style={{ maxWidth: 600 }}>
+            <div className="modal-header">
+              <h3>Edit Event</h3>
+              <button className="btn btn-ghost btn-sm" onClick={() => setEditEventId(null)}>
+                <X size={18} />
+              </button>
+            </div>
+            <div className="modal-body">
+              <EventForm 
+                initialEventId={editEventId} 
+                onSuccess={() => {
+                  setEditEventId(null);
+                  fetchEvents();
+                }}
+                onCancel={() => setEditEventId(null)}
+              />
             </div>
           </div>
         </div>
