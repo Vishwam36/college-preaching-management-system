@@ -8,7 +8,7 @@ import {
 import { useState } from 'react';
 
 export default function Layout({ children }) {
-  const { signOut, speaker } = useAuth();
+  const { signOut, speaker, session } = useAuth();
   const { colleges, academicYears, selectedCollege, setSelectedCollege, selectedYear, setSelectedYear } = useApp();
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
@@ -53,11 +53,12 @@ export default function Layout({ children }) {
         </nav>
 
         <div style={{ padding: 'var(--space-4)', borderTop: '1px solid var(--border-primary)' }}>
-          {speaker && (
-            <div style={{ padding: 'var(--space-3)', marginBottom: 'var(--space-2)', fontSize: 'var(--font-sm)', color: 'var(--text-secondary)' }}>
-              Signed in as <b style={{ color: 'var(--text-primary)' }}>{speaker.name}</b>
-            </div>
-          )}
+          <div style={{ padding: 'var(--space-3)', marginBottom: 'var(--space-2)', fontSize: 'var(--font-sm)', color: 'var(--text-secondary)' }}>
+            Signed in as: <br />
+            <b style={{ color: 'var(--text-primary)', wordBreak: 'break-all' }}>
+              {speaker ? speaker.name : session?.user?.email}
+            </b>
+          </div>
           <button className="btn btn-ghost" style={{ width: '100%', justifyContent: 'flex-start' }} onClick={signOut}>
             <LogOut size={16} /> Sign Out
           </button>

@@ -1,5 +1,6 @@
 import { createContext, useContext, useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
+import { TABLES } from '../constants';
 
 const AuthContext = createContext(null);
 
@@ -32,7 +33,7 @@ export function AuthProvider({ children }) {
 
   async function fetchSpeaker(authUserId) {
     const { data } = await supabase
-      .from('speakers')
+      .from(TABLES.SPEAKERS)
       .select('*')
       .eq('auth_user_id', authUserId)
       .single();

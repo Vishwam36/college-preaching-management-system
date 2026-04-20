@@ -1,5 +1,6 @@
 import { createContext, useContext, useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
+import { TABLES, FIELDS } from '../constants';
 
 const AppContext = createContext(null);
 
@@ -15,13 +16,13 @@ export function AppProvider({ children }) {
   }, []);
 
   async function fetchColleges() {
-    const { data } = await supabase.from('colleges').select('*').order('name');
+    const { data } = await supabase.from(TABLES.COLLEGES).select('*').order(FIELDS.NAME);
     setColleges(data || []);
     if (data?.length && !selectedCollege) setSelectedCollege(data[0].id);
   }
 
   async function fetchAcademicYears() {
-    const { data } = await supabase.from('academic_years').select('*').order('start_date', { ascending: false });
+    const { data } = await supabase.from(TABLES.ACADEMIC_YEARS).select('*').order(FIELDS.START_DATE, { ascending: false });
     setAcademicYears(data || []);
     if (data?.length && !selectedYear) setSelectedYear(data[0].id);
   }
