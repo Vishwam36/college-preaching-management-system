@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useApp } from '../contexts/AppContext';
 import { supabase } from '../lib/supabase';
-import { History, Eye, X, Users as UsersIcon, Edit } from 'lucide-react';
+import { History, Eye, X, Users as UsersIcon, Edit, Trash2 } from 'lucide-react';
 import { TABLES, FIELDS } from '../constants';
 import EventForm from '../components/EventForm';
 
@@ -47,6 +47,18 @@ export default function EventHistoryPage() {
     setDetailSpeakers(spk || []);
   }
 
+  async function deleteEvent(event) {
+    const confirmed = window.confirm(
+      `Delete "${event.event_types?.name}" on ${new Date(event.event_date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}?\n\nThis will permanently remove the event and all its attendance records.\n\nTip: If you just need to fix a detail, click Edit instead.`
+    );
+    if (!confirmed) return;
+    // Cascade delete: attendance → speakers → event
+    await supabase.from(TABLES.EVENT_ATTENDANCE).delete().eq('event_id', event.id);
+    await supabase.from(TABLES.EVENT_SPEAKERS).delete().eq('event_id', event.id);
+    await supabase.from(TABLES.EVENTS).delete().eq(FIELDS.ID, event.id);
+    fetchEvents();
+  }
+
   if (loading) {
     return <div className="page-loading"><div className="spinner"></div></div>;
   }
@@ -79,12 +91,17 @@ export default function EventHistoryPage() {
                   <td style={{ color: 'var(--text-accent)', fontWeight: 500 }}>{event[TABLES.EVENT_TYPES]?.[FIELDS.NAME]}</td>
                   <td>{event[TABLES.COLLEGES]?.[FIELDS.NAME]}</td>
                   <td>
-                    <button className="btn btn-ghost btn-sm" onClick={() => openDetail(event)}>
-                      <Eye size={14} /> View
-                    </button>
-                    <button className="btn btn-ghost btn-sm" style={{ color: 'var(--text-accent)' }} onClick={() => setEditEventId(event.id)}>
-                      <Edit size={14} /> Edit
-                    </button>
+                    <div style={{ display: 'flex', gap: 'var(--space-1)', flexWrap: 'wrap' }}>
+                      <button className="btn btn-ghost btn-sm" onClick={() => openDetail(event)}>
+                        <Eye size={14} /> View
+                      </button>
+                      <button className="btn btn-ghost btn-sm" style={{ color: 'var(--text-accent)' }} onClick={() => setEditEventId(event.id)}>
+                        <Edit size={14} /> Edit
+                      </button>
+                      <button className="btn btn-ghost btn-sm" style={{ color: 'var(--danger)' }} onClick={() => deleteEvent(event)}>
+                        <Trash2 size={14} /> Delete
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}
