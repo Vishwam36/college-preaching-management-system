@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { useApp } from '../contexts/AppContext';
 import { Check, ChevronRight, ChevronLeft, Loader2 } from 'lucide-react';
+import { TABLES, FIELDS, FORM_FIELDS } from '../constants';
 
 export default function EventForm({ initialEventId = null, onSuccess, onCancel }) {
   const { selectedCollege, selectedYear } = useApp();
@@ -19,6 +20,7 @@ export default function EventForm({ initialEventId = null, onSuccess, onCancel }
   const [speakerFeedback, setSpeakerFeedback] = useState('');
   const [saving, setSaving] = useState(false);
   const [success, setSuccess] = useState(false);
+  const [errors, setErrors] = useState([]);
 
   useEffect(() => {
     fetchEventTypes();
@@ -29,12 +31,12 @@ export default function EventForm({ initialEventId = null, onSuccess, onCancel }
   }, [selectedCollege, selectedYear, initialEventId]);
 
   async function fetchEventTypes() {
-    const { data } = await supabase.from('event_types').select('*').order('name');
+    const { data } = await supabase.from(TABLES.EVENT_TYPES).select('*').order(FIELDS.NAME);
     setEventTypes(data || []);
   }
 
   async function fetchSpeakers() {
-    const { data } = await supabase.from('speakers').select('*').order('name');
+    const { data } = await supabase.from(TABLES.SPEAKERS).select('*').order(FIELDS.NAME);
     setSpeakers(data || []);
   }
 
@@ -42,33 +44,33 @@ export default function EventForm({ initialEventId = null, onSuccess, onCancel }
     if (initialEventId) {
       // Fetch existing event
       const { data: event } = await supabase
-        .from('events')
+        .from(TABLES.EVENTS)
         .select('*')
-        .eq('id', initialEventId)
+        .eq(FIELDS.ID, initialEventId)
         .single();
       
       if (event) {
-        setEventTypeId(event.event_type_id);
-        setEventDate(event.event_date);
-        setSpeakerFeedback(event.speaker_feedback || '');
+        setEventTypeId(event[FIELDS.EVENT_TYPE_ID]);
+        setEventDate(event[FIELDS.EVENT_DATE]);
+        setSpeakerFeedback(event[FIELDS.SPEAKER_FEEDBACK] || '');
       }
 
       // Fetch existing speakers
       const { data: eventSpeakers } = await supabase
-        .from('event_speakers')
-        .select('speaker_id')
+        .from(TABLES.EVENT_SPEAKERS)
+        .select(FIELDS.SPEAKER_ID)
         .eq('event_id', initialEventId);
-      setSelectedSpeakers((eventSpeakers || []).map(s => s.speaker_id));
+      setSelectedSpeakers((eventSpeakers || []).map(s => s[FIELDS.SPEAKER_ID]));
 
       // Fetch all students AND existing attendance
       const { data: allStudents } = await supabase
-        .from('students')
+        .from(TABLES.STUDENTS)
         .select('*')
-        .eq('college_id', selectedCollege)
-        .order('name');
+        .eq(FIELDS.COLLEGE_ID, selectedCollege)
+        .order(FIELDS.NAME);
       
       const { data: eventAttendance } = await supabase
-        .from('event_attendance')
+        .from(TABLES.EVENT_ATTENDANCE)
         .select('*')
         .eq('event_id', initialEventId);
       
@@ -88,17 +90,17 @@ export default function EventForm({ initialEventId = null, onSuccess, onCancel }
     } else {
       // Fetch only students for new event
       const { data } = await supabase
-        .from('students')
+        .from(TABLES.STUDENTS)
         .select('*')
-        .eq('college_id', selectedCollege)
-        .order('name');
+        .eq(FIELDS.COLLEGE_ID, selectedCollege)
+        .order(FIELDS.NAME);
       setStudents(data || []);
       setAttendees((data || []).map(s => ({
-        student_id: s.id,
-        name: s.name,
+        [FIELDS.STUDENT_ID]: s.id,
+        [FIELDS.NAME]: s.name,
         attended: false,
-        quiz_score: '',
-        student_feedback: ''
+        [FIELDS.QUIZ_SCORE]: '',
+        [FIELDS.STUDENT_FEEDBACK]: ''
       })));
     }
   }
@@ -115,16 +117,29 @@ export default function EventForm({ initialEventId = null, onSuccess, onCancel }
     ));
   }
 
+  function handleNextStep1() {
+    const missing = [];
+    if (!eventTypeId) missing.push(FORM_FIELDS.EVENT_TYPE);
+    if (!eventDate) missing.push(FORM_FIELDS.EVENT_DATE);
+
+    if (missing.length > 0) {
+      setErrors(missing);
+      return;
+    }
+    setErrors([]);
+    setStep(2);
+  }
+
   async function handleSubmit() {
     if (!eventTypeId || !eventDate || !selectedCollege || !selectedYear) return;
     setSaving(true);
 
     const eventPayload = {
-      college_id: selectedCollege,
-      academic_year_id: selectedYear,
-      event_type_id: eventTypeId,
-      event_date: eventDate,
-      speaker_feedback: speakerFeedback
+      [FIELDS.COLLEGE_ID]: selectedCollege,
+      [FIELDS.ACADEMIC_YEAR_ID]: selectedYear,
+      [FIELDS.EVENT_TYPE_ID]: eventTypeId,
+      [FIELDS.EVENT_DATE]: eventDate,
+      [FIELDS.SPEAKER_FEEDBACK]: speakerFeedback
     };
 
     let eventId = initialEventId;
@@ -132,9 +147,9 @@ export default function EventForm({ initialEventId = null, onSuccess, onCancel }
     if (initialEventId) {
       // Update existing event
       const { error: eventError } = await supabase
-        .from('events')
+        .from(TABLES.EVENTS)
         .update(eventPayload)
-        .eq('id', initialEventId);
+        .eq(FIELDS.ID, initialEventId);
       
       if (eventError) {
         alert('Error updating event: ' + eventError.message);
@@ -143,30 +158,30 @@ export default function EventForm({ initialEventId = null, onSuccess, onCancel }
       }
 
       // Update speakers: delete and re-insert
-      await supabase.from('event_speakers').delete().eq('event_id', initialEventId);
+      await supabase.from(TABLES.EVENT_SPEAKERS).delete().eq('event_id', initialEventId);
       if (selectedSpeakers.length > 0) {
-        await supabase.from('event_speakers').insert(
-          selectedSpeakers.map(spkId => ({ event_id: initialEventId, speaker_id: spkId }))
+        await supabase.from(TABLES.EVENT_SPEAKERS).insert(
+          selectedSpeakers.map(spkId => ({ event_id: initialEventId, [FIELDS.SPEAKER_ID]: spkId }))
         );
       }
 
       // Update attendance: delete and re-insert
-      await supabase.from('event_attendance').delete().eq('event_id', initialEventId);
+      await supabase.from(TABLES.EVENT_ATTENDANCE).delete().eq('event_id', initialEventId);
       const attendedStudents = attendees.filter(a => a.attended);
       if (attendedStudents.length > 0) {
-        await supabase.from('event_attendance').insert(
+        await supabase.from(TABLES.EVENT_ATTENDANCE).insert(
           attendedStudents.map(a => ({
             event_id: initialEventId,
-            student_id: a.student_id,
-            quiz_score: a.quiz_score !== '' ? Number(a.quiz_score) : null,
-            student_feedback: a.student_feedback || null
+            [FIELDS.STUDENT_ID]: a[FIELDS.STUDENT_ID],
+            [FIELDS.QUIZ_SCORE]: a[FIELDS.QUIZ_SCORE] !== '' ? Number(a[FIELDS.QUIZ_SCORE]) : null,
+            [FIELDS.STUDENT_FEEDBACK]: a[FIELDS.STUDENT_FEEDBACK] || null
           }))
         );
       }
     } else {
       // Create new event
       const { data: event, error: eventError } = await supabase
-        .from('events')
+        .from(TABLES.EVENTS)
         .insert(eventPayload)
         .select()
         .single();
@@ -176,24 +191,24 @@ export default function EventForm({ initialEventId = null, onSuccess, onCancel }
         setSaving(false);
         return;
       }
-      eventId = event.id;
+      eventId = event[FIELDS.ID];
 
       // Add speakers
       if (selectedSpeakers.length > 0) {
-        await supabase.from('event_speakers').insert(
-          selectedSpeakers.map(spkId => ({ event_id: eventId, speaker_id: spkId }))
+        await supabase.from(TABLES.EVENT_SPEAKERS).insert(
+          selectedSpeakers.map(spkId => ({ event_id: eventId, [FIELDS.SPEAKER_ID]: spkId }))
         );
       }
 
       // Add attendance
       const attendedStudents = attendees.filter(a => a.attended);
       if (attendedStudents.length > 0) {
-        await supabase.from('event_attendance').insert(
+        await supabase.from(TABLES.EVENT_ATTENDANCE).insert(
           attendedStudents.map(a => ({
             event_id: eventId,
-            student_id: a.student_id,
-            quiz_score: a.quiz_score !== '' ? Number(a.quiz_score) : null,
-            student_feedback: a.student_feedback || null
+            [FIELDS.STUDENT_ID]: a[FIELDS.STUDENT_ID],
+            [FIELDS.QUIZ_SCORE]: a[FIELDS.QUIZ_SCORE] !== '' ? Number(a[FIELDS.QUIZ_SCORE]) : null,
+            [FIELDS.STUDENT_FEEDBACK]: a[FIELDS.STUDENT_FEEDBACK] || null
           }))
         );
       }
@@ -255,18 +270,18 @@ export default function EventForm({ initialEventId = null, onSuccess, onCancel }
           <div>
             <div className="form-group">
               <label className="form-label">Event Type (Topic)</label>
-              <select className="form-select" value={eventTypeId} onChange={e => setEventTypeId(e.target.value)}>
+              <select className={`form-select ${errors.includes(FORM_FIELDS.EVENT_TYPE) ? 'form-input-error' : ''}`} value={eventTypeId} onChange={e => { setEventTypeId(e.target.value); if (errors.includes(FORM_FIELDS.EVENT_TYPE)) setErrors(prev => prev.filter(x => x !== FORM_FIELDS.EVENT_TYPE)); }}>
                 <option value="">Select event type…</option>
-                {eventTypes.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                {eventTypes.map(t => <option key={t.id} value={t.id}>{t[FIELDS.NAME]}</option>)}
               </select>
             </div>
             <div className="form-group">
               <label className="form-label">Event Date</label>
-              <input type="date" className="form-input" value={eventDate} onChange={e => setEventDate(e.target.value)} />
+              <input type="date" className={`form-input ${errors.includes(FORM_FIELDS.EVENT_DATE) ? 'form-input-error' : ''}`} value={eventDate} onChange={e => { setEventDate(e.target.value); if (errors.includes(FORM_FIELDS.EVENT_DATE)) setErrors(prev => prev.filter(x => x !== FORM_FIELDS.EVENT_DATE)); }} />
             </div>
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 'var(--space-2)' }}>
               {onCancel && <button className="btn btn-secondary" onClick={onCancel}>Cancel</button>}
-              <button className="btn btn-primary" onClick={() => setStep(2)} disabled={!eventTypeId || !eventDate}>
+              <button className="btn btn-primary" onClick={handleNextStep1}>
                 Next <ChevronRight size={16} />
               </button>
             </div>
@@ -324,22 +339,22 @@ export default function EventForm({ initialEventId = null, onSuccess, onCancel }
                   </thead>
                   <tbody>
                     {attendees.map(a => (
-                      <tr key={a.student_id}>
+                      <tr key={a[FIELDS.STUDENT_ID]}>
                         <td>
                           <input
                             type="checkbox"
                             checked={a.attended}
-                            onChange={() => toggleAttendee(a.student_id)}
+                            onChange={() => toggleAttendee(a[FIELDS.STUDENT_ID])}
                           />
                         </td>
-                        <td style={{ fontWeight: 500, fontSize: 'var(--font-sm)' }}>{a.name}</td>
+                        <td style={{ fontWeight: 500, fontSize: 'var(--font-sm)' }}>{a[FIELDS.NAME]}</td>
                         <td>
                           <input
                             type="number"
                             className="form-input"
                             style={{ height: 28, padding: '2px 4px', fontSize: 'var(--font-xs)' }}
-                            value={a.quiz_score}
-                            onChange={e => updateAttendee(a.student_id, 'quiz_score', e.target.value)}
+                            value={a[FIELDS.QUIZ_SCORE]}
+                            onChange={e => updateAttendee(a[FIELDS.STUDENT_ID], FIELDS.QUIZ_SCORE, e.target.value)}
                             disabled={!a.attended}
                           />
                         </td>
@@ -348,8 +363,8 @@ export default function EventForm({ initialEventId = null, onSuccess, onCancel }
                             type="text"
                             className="form-input"
                             style={{ height: 28, padding: '2px 4px', fontSize: 'var(--font-xs)' }}
-                            value={a.student_feedback}
-                            onChange={e => updateAttendee(a.student_id, 'student_feedback', e.target.value)}
+                            value={a[FIELDS.STUDENT_FEEDBACK]}
+                            onChange={e => updateAttendee(a[FIELDS.STUDENT_ID], FIELDS.STUDENT_FEEDBACK, e.target.value)}
                             disabled={!a.attended}
                           />
                         </td>
@@ -385,7 +400,7 @@ export default function EventForm({ initialEventId = null, onSuccess, onCancel }
             <div style={{ display: 'grid', gap: 'var(--space-2)', marginBottom: 'var(--space-4)', fontSize: 'var(--font-sm)' }}>
               <div style={{ padding: 'var(--space-2)', background: 'var(--bg-input)', borderRadius: 'var(--radius-md)' }}>
                 <p style={{ color: 'var(--text-muted)', fontSize: 'var(--font-xs)' }}>Topic</p>
-                <p style={{ fontWeight: 600 }}>{eventTypes.find(t => t.id === eventTypeId)?.name}</p>
+                <p style={{ fontWeight: 600 }}>{eventTypes.find(t => t.id === eventTypeId)?.[FIELDS.NAME]}</p>
               </div>
               <div style={{ padding: 'var(--space-2)', background: 'var(--bg-input)', borderRadius: 'var(--radius-md)' }}>
                 <p style={{ color: 'var(--text-muted)', fontSize: 'var(--font-xs)' }}>Date</p>

@@ -2,31 +2,47 @@ import { useEffect, useState } from 'react';
 import { useApp } from '../contexts/AppContext';
 import { supabase } from '../lib/supabase';
 import { Plus, Pencil, Trash2, X, Settings } from 'lucide-react';
+import { TABLES, FIELDS } from '../constants';
 
 /* ============================================================
    Generic CRUD section component
    ============================================================ */
-function CrudSection({ title, items, columns, onAdd, onEdit, onDelete, renderForm, formData, setFormData, editId, setEditId, initialData = {} }) {
+function CrudSection({ title, items, columns, onAdd, onEdit, onDelete, renderForm, formData, setFormData, editId, setEditId, initialData = {}, requiredFields = [] }) {
   const [showForm, setShowForm] = useState(false);
+  const [errors, setErrors] = useState([]);
 
   function openAdd() {
     setEditId(null);
     setFormData({ ...initialData });
+    setErrors([]);
     setShowForm(true);
   }
 
   function openEdit(item) {
     setEditId(item.id);
     setFormData({ ...item });
+    setErrors([]);
     setShowForm(true);
   }
 
   function handleSave() {
+    const missing = requiredFields.filter(f => !formData[f] || formData[f].toString().trim() === '');
+    if (missing.length > 0) {
+      setErrors(missing);
+      return;
+    }
+
     if (editId) onEdit(editId, formData);
     else onAdd(formData);
     setShowForm(false);
     setFormData({});
     setEditId(null);
+    setErrors([]);
+  }
+
+  function closeForm() {
+    setShowForm(false);
+    setErrors([]);
   }
 
   return (
@@ -65,17 +81,17 @@ function CrudSection({ title, items, columns, onAdd, onEdit, onDelete, renderFor
       )}
 
       {showForm && (
-        <div className="modal-overlay" onClick={() => setShowForm(false)}>
+        <div className="modal-overlay" onClick={closeForm}>
           <div className="modal" onClick={e => e.stopPropagation()}>
             <div className="modal-header">
               <h3>{editId ? 'Edit' : 'Add'} {title.replace(/s$/, '')}</h3>
-              <button className="btn btn-ghost btn-sm" onClick={() => setShowForm(false)}><X size={18} /></button>
+              <button className="btn btn-ghost btn-sm" onClick={closeForm}><X size={18} /></button>
             </div>
             <div className="modal-body">
-              {renderForm()}
+              {renderForm(errors)}
             </div>
             <div className="modal-footer">
-              <button className="btn btn-secondary" onClick={() => setShowForm(false)}>Cancel</button>
+              <button className="btn btn-secondary" onClick={closeForm}>Cancel</button>
               <button className="btn btn-primary" onClick={handleSave}>Save</button>
             </div>
           </div>
@@ -108,17 +124,17 @@ export default function ManagePage() {
   }, []);
 
   async function fetchSpeakers() {
-    const { data } = await supabase.from('speakers').select('*').order('name');
+    const { data } = await supabase.from(TABLES.SPEAKERS).select('*').order(FIELDS.NAME);
     setSpeakers(data || []);
   }
 
   async function fetchStudents() {
-    const { data } = await supabase.from('students').select('*, colleges(name)').order('name');
+    const { data } = await supabase.from(TABLES.STUDENTS).select(`*, ${TABLES.COLLEGES}(${FIELDS.NAME})`).order(FIELDS.NAME);
     setStudents(data || []);
   }
 
   async function fetchEventTypes() {
-    const { data } = await supabase.from('event_types').select('*').order('name');
+    const { data } = await supabase.from(TABLES.EVENT_TYPES).select('*').order(FIELDS.NAME);
     setEventTypes(data || []);
   }
 
@@ -169,22 +185,23 @@ export default function ManagePage() {
           title="Colleges"
           items={colleges}
           columns={[
-            { key: 'name', label: 'Name' },
-            { key: 'city', label: 'City' },
+            { key: FIELDS.NAME, label: 'Name' },
+            { key: FIELDS.CITY, label: 'City' },
           ]}
-          onAdd={(d) => addItem('colleges', d, refreshColleges)}
-          onEdit={(id, d) => editItem('colleges', id, d, refreshColleges)}
-          onDelete={(id) => deleteItem('colleges', id, refreshColleges)}
+          onAdd={(d) => addItem(TABLES.COLLEGES, d, refreshColleges)}
+          onEdit={(id, d) => editItem(TABLES.COLLEGES, id, d, refreshColleges)}
+          onDelete={(id) => deleteItem(TABLES.COLLEGES, id, refreshColleges)}
           formData={formData} setFormData={setFormData} editId={editId} setEditId={setEditId}
-          renderForm={() => (
+          requiredFields={[FIELDS.NAME]}
+          renderForm={(errors) => (
             <>
               <div className="form-group">
                 <label className="form-label">Name</label>
-                <input className="form-input" value={formData.name || ''} onChange={e => updateField('name', e.target.value)} />
+                <input className={`form-input ${errors.includes(FIELDS.NAME) ? 'form-input-error' : ''}`} value={formData[FIELDS.NAME] || ''} onChange={e => updateField(FIELDS.NAME, e.target.value)} />
               </div>
               <div className="form-group">
                 <label className="form-label">City</label>
-                <input className="form-input" value={formData.city || ''} onChange={e => updateField('city', e.target.value)} />
+                <input className="form-input" value={formData[FIELDS.CITY] || ''} onChange={e => updateField(FIELDS.CITY, e.target.value)} />
               </div>
             </>
           )}
@@ -197,28 +214,29 @@ export default function ManagePage() {
           title="Speakers"
           items={speakers}
           columns={[
-            { key: 'name', label: 'Name' },
-            { key: 'email', label: 'Email' },
-            { key: 'phone', label: 'Phone' },
+            { key: FIELDS.NAME, label: 'Name' },
+            { key: FIELDS.EMAIL, label: 'Email' },
+            { key: FIELDS.PHONE, label: 'Phone' },
           ]}
-          onAdd={(d) => addItem('speakers', d, fetchSpeakers)}
-          onEdit={(id, d) => editItem('speakers', id, d, fetchSpeakers)}
-          onDelete={(id) => deleteItem('speakers', id, fetchSpeakers)}
+          onAdd={(d) => addItem(TABLES.SPEAKERS, d, fetchSpeakers)}
+          onEdit={(id, d) => editItem(TABLES.SPEAKERS, id, d, fetchSpeakers)}
+          onDelete={(id) => deleteItem(TABLES.SPEAKERS, id, fetchSpeakers)}
           formData={formData} setFormData={setFormData} editId={editId} setEditId={setEditId}
-          renderForm={() => (
+          requiredFields={[FIELDS.NAME, FIELDS.EMAIL]}
+          renderForm={(errors) => (
             <>
               <div className="form-group">
                 <label className="form-label">Name</label>
-                <input className="form-input" value={formData.name || ''} onChange={e => updateField('name', e.target.value)} />
+                <input className={`form-input ${errors.includes(FIELDS.NAME) ? 'form-input-error' : ''}`} value={formData[FIELDS.NAME] || ''} onChange={e => updateField(FIELDS.NAME, e.target.value)} />
               </div>
               <div className="form-row">
                 <div className="form-group">
                   <label className="form-label">Email</label>
-                  <input className="form-input" type="email" value={formData.email || ''} onChange={e => updateField('email', e.target.value)} />
+                  <input className={`form-input ${errors.includes(FIELDS.EMAIL) ? 'form-input-error' : ''}`} type="email" value={formData[FIELDS.EMAIL] || ''} onChange={e => updateField(FIELDS.EMAIL, e.target.value)} />
                 </div>
                 <div className="form-group">
                   <label className="form-label">Phone</label>
-                  <input className="form-input" value={formData.phone || ''} onChange={e => updateField('phone', e.target.value)} />
+                  <input className="form-input" value={formData[FIELDS.PHONE] || ''} onChange={e => updateField(FIELDS.PHONE, e.target.value)} />
                 </div>
               </div>
             </>
@@ -231,22 +249,23 @@ export default function ManagePage() {
         <CrudSection
           title="Students"
           items={students}
-          initialData={{ college_id: selectedCollege, enrollment_year: selectedYear }}
+          initialData={{ [FIELDS.COLLEGE_ID]: selectedCollege, [FIELDS.ENROLLMENT_YEAR]: selectedYear }}
           columns={[
-            { key: 'name', label: 'Name' },
-            { key: 'college', label: 'College', render: s => s.colleges?.name },
-            { key: 'status', label: 'Status', render: s => <span className={`badge badge-${s.status}`}>{s.status}</span> },
-            { key: 'phone', label: 'Phone' },
+            { key: FIELDS.NAME, label: 'Name' },
+            { key: 'college', label: 'College', render: s => s[TABLES.COLLEGES]?.name },
+            { key: FIELDS.STATUS, label: 'Status', render: s => <span className={`badge badge-${s[FIELDS.STATUS]}`}>{s[FIELDS.STATUS]}</span> },
+            { key: FIELDS.PHONE, label: 'Phone' },
           ]}
-          onAdd={(d) => addItem('students', d, fetchStudents)}
-          onEdit={(id, d) => editItem('students', id, d, fetchStudents)}
-          onDelete={(id) => deleteItem('students', id, fetchStudents)}
+          onAdd={(d) => addItem(TABLES.STUDENTS, d, fetchStudents)}
+          onEdit={(id, d) => editItem(TABLES.STUDENTS, id, d, fetchStudents)}
+          onDelete={(id) => deleteItem(TABLES.STUDENTS, id, fetchStudents)}
           formData={formData} setFormData={setFormData} editId={editId} setEditId={setEditId}
-          renderForm={() => (
+          requiredFields={[FIELDS.NAME, FIELDS.COLLEGE_ID, FIELDS.STATUS]}
+          renderForm={(errors) => (
             <>
               <div className="form-group">
                 <label className="form-label">Name</label>
-                <input className="form-input" value={formData.name || ''} onChange={e => updateField('name', e.target.value)} />
+                <input className={`form-input ${errors.includes(FIELDS.NAME) ? 'form-input-error' : ''}`} value={formData[FIELDS.NAME] || ''} onChange={e => updateField(FIELDS.NAME, e.target.value)} />
               </div>
               <div className="form-row">
                 <div className="form-group">
@@ -255,7 +274,7 @@ export default function ManagePage() {
                 </div>
                 <div className="form-group">
                   <label className="form-label">Status</label>
-                  <select className="form-select" value={formData.status || 'active'} onChange={e => updateField('status', e.target.value)}>
+                  <select className={`form-select ${errors.includes(FIELDS.STATUS) ? 'form-input-error' : ''}`} value={formData[FIELDS.STATUS] || 'active'} onChange={e => updateField(FIELDS.STATUS, e.target.value)}>
                     <option value="active">Active</option>
                     <option value="intermittent">Intermittent</option>
                     <option value="inactive">Inactive</option>
@@ -265,11 +284,11 @@ export default function ManagePage() {
               <div className="form-row">
                 <div className="form-group">
                   <label className="form-label">Email</label>
-                  <input className="form-input" type="email" value={formData.email || ''} onChange={e => updateField('email', e.target.value)} />
+                  <input className="form-input" type="email" value={formData[FIELDS.EMAIL] || ''} onChange={e => updateField(FIELDS.EMAIL, e.target.value)} />
                 </div>
                 <div className="form-group">
                   <label className="form-label">Phone</label>
-                  <input className="form-input" value={formData.phone || ''} onChange={e => updateField('phone', e.target.value)} />
+                  <input className="form-input" value={formData[FIELDS.PHONE] || ''} onChange={e => updateField(FIELDS.PHONE, e.target.value)} />
                 </div>
               </div>
               <div className="form-group">
@@ -279,14 +298,14 @@ export default function ManagePage() {
               <div className="form-row">
                 <div className="form-group">
                   <label className="form-label">College</label>
-                  <select className="form-select" value={formData.college_id || ''} onChange={e => updateField('college_id', e.target.value)}>
+                  <select className={`form-select ${errors.includes(FIELDS.COLLEGE_ID) ? 'form-input-error' : ''}`} value={formData[FIELDS.COLLEGE_ID] || ''} onChange={e => updateField(FIELDS.COLLEGE_ID, e.target.value)}>
                     <option value="">Select college…</option>
                     {colleges.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
                   </select>
                 </div>
                 <div className="form-group">
                   <label className="form-label">Enrollment Year</label>
-                  <select className="form-select" value={formData.enrollment_year || ''} onChange={e => updateField('enrollment_year', e.target.value)}>
+                  <select className="form-select" value={formData[FIELDS.ENROLLMENT_YEAR] || ''} onChange={e => updateField(FIELDS.ENROLLMENT_YEAR, e.target.value)}>
                     <option value="">Select year…</option>
                     {academicYears.map(y => <option key={y.id} value={y.id}>{y.label}</option>)}
                   </select>
@@ -307,16 +326,17 @@ export default function ManagePage() {
           title="Event Types"
           items={eventTypes}
           columns={[
-            { key: 'name', label: 'Name' },
+            { key: FIELDS.NAME, label: 'Name' },
           ]}
-          onAdd={(d) => addItem('event_types', d, fetchEventTypes)}
-          onEdit={(id, d) => editItem('event_types', id, d, fetchEventTypes)}
-          onDelete={(id) => deleteItem('event_types', id, fetchEventTypes)}
+          onAdd={(d) => addItem(TABLES.EVENT_TYPES, d, fetchEventTypes)}
+          onEdit={(id, d) => editItem(TABLES.EVENT_TYPES, id, d, fetchEventTypes)}
+          onDelete={(id) => deleteItem(TABLES.EVENT_TYPES, id, fetchEventTypes)}
           formData={formData} setFormData={setFormData} editId={editId} setEditId={setEditId}
-          renderForm={() => (
+          requiredFields={[FIELDS.NAME]}
+          renderForm={(errors) => (
             <div className="form-group">
               <label className="form-label">Event Type Name</label>
-              <input className="form-input" value={formData.name || ''} onChange={e => updateField('name', e.target.value)} placeholder="e.g. Weekly Session, Retreat" />
+              <input className={`form-input ${errors.includes(FIELDS.NAME) ? 'form-input-error' : ''}`} value={formData[FIELDS.NAME] || ''} onChange={e => updateField(FIELDS.NAME, e.target.value)} placeholder="e.g. Weekly Session, Retreat" />
             </div>
           )}
         />
@@ -328,28 +348,29 @@ export default function ManagePage() {
           title="Academic Years"
           items={academicYears}
           columns={[
-            { key: 'label', label: 'Label' },
-            { key: 'start_date', label: 'Start', render: y => y.start_date },
-            { key: 'end_date', label: 'End', render: y => y.end_date },
+            { key: FIELDS.LABEL, label: 'Label' },
+            { key: FIELDS.START_DATE, label: 'Start', render: y => y[FIELDS.START_DATE] },
+            { key: FIELDS.END_DATE, label: 'End', render: y => y[FIELDS.END_DATE] },
           ]}
-          onAdd={(d) => addItem('academic_years', d, refreshAcademicYears)}
-          onEdit={(id, d) => editItem('academic_years', id, d, refreshAcademicYears)}
-          onDelete={(id) => deleteItem('academic_years', id, refreshAcademicYears)}
+          onAdd={(d) => addItem(TABLES.ACADEMIC_YEARS, d, refreshAcademicYears)}
+          onEdit={(id, d) => editItem(TABLES.ACADEMIC_YEARS, id, d, refreshAcademicYears)}
+          onDelete={(id) => deleteItem(TABLES.ACADEMIC_YEARS, id, refreshAcademicYears)}
           formData={formData} setFormData={setFormData} editId={editId} setEditId={setEditId}
-          renderForm={() => (
+          requiredFields={[FIELDS.LABEL, FIELDS.START_DATE, FIELDS.END_DATE]}
+          renderForm={(errors) => (
             <>
               <div className="form-group">
                 <label className="form-label">Label (e.g. 2025-26)</label>
-                <input className="form-input" value={formData.label || ''} onChange={e => updateField('label', e.target.value)} />
+                <input className={`form-input ${errors.includes(FIELDS.LABEL) ? 'form-input-error' : ''}`} value={formData[FIELDS.LABEL] || ''} onChange={e => updateField(FIELDS.LABEL, e.target.value)} />
               </div>
               <div className="form-row">
                 <div className="form-group">
                   <label className="form-label">Start Date</label>
-                  <input className="form-input" type="date" value={formData.start_date || ''} onChange={e => updateField('start_date', e.target.value)} />
+                  <input className={`form-input ${errors.includes(FIELDS.START_DATE) ? 'form-input-error' : ''}`} type="date" value={formData[FIELDS.START_DATE] || ''} onChange={e => updateField(FIELDS.START_DATE, e.target.value)} />
                 </div>
                 <div className="form-group">
                   <label className="form-label">End Date</label>
-                  <input className="form-input" type="date" value={formData.end_date || ''} onChange={e => updateField('end_date', e.target.value)} />
+                  <input className={`form-input ${errors.includes(FIELDS.END_DATE) ? 'form-input-error' : ''}`} type="date" value={formData[FIELDS.END_DATE] || ''} onChange={e => updateField(FIELDS.END_DATE, e.target.value)} />
                 </div>
               </div>
             </>

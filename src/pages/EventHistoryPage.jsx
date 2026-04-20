@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useApp } from '../contexts/AppContext';
 import { supabase } from '../lib/supabase';
 import { History, Eye, X, Users as UsersIcon, Edit } from 'lucide-react';
+import { TABLES, FIELDS } from '../constants';
 import EventForm from '../components/EventForm';
 
 export default function EventHistoryPage() {
@@ -20,11 +21,11 @@ export default function EventHistoryPage() {
   async function fetchEvents() {
     setLoading(true);
     let query = supabase
-      .from('events')
-      .select('*, event_types(name), colleges(name)')
-      .order('event_date', { ascending: false });
-    if (selectedCollege) query = query.eq('college_id', selectedCollege);
-    if (selectedYear) query = query.eq('academic_year_id', selectedYear);
+      .from(TABLES.EVENTS)
+      .select(`*, ${TABLES.EVENT_TYPES}(${FIELDS.NAME}), ${TABLES.COLLEGES}(${FIELDS.NAME})`)
+      .order(FIELDS.EVENT_DATE, { ascending: false });
+    if (selectedCollege) query = query.eq(FIELDS.COLLEGE_ID, selectedCollege);
+    if (selectedYear) query = query.eq(FIELDS.ACADEMIC_YEAR_ID, selectedYear);
     const { data } = await query;
     setEvents(data || []);
     setLoading(false);
@@ -34,14 +35,14 @@ export default function EventHistoryPage() {
     setDetail(event);
     // Fetch attendees
     const { data: att } = await supabase
-      .from('event_attendance')
-      .select('*, students(name)')
+      .from(TABLES.EVENT_ATTENDANCE)
+      .select(`*, ${TABLES.STUDENTS}(${FIELDS.NAME})`)
       .eq('event_id', event.id);
     setDetailAttendees(att || []);
     // Fetch speakers
     const { data: spk } = await supabase
-      .from('event_speakers')
-      .select('*, speakers(name)')
+      .from(TABLES.EVENT_SPEAKERS)
+      .select(`*, ${TABLES.SPEAKERS}(${FIELDS.NAME})`)
       .eq('event_id', event.id);
     setDetailSpeakers(spk || []);
   }
@@ -74,9 +75,9 @@ export default function EventHistoryPage() {
             <tbody>
               {events.map(event => (
                 <tr key={event.id}>
-                  <td>{new Date(event.event_date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}</td>
-                  <td style={{ color: 'var(--text-accent)', fontWeight: 500 }}>{event.event_types?.name}</td>
-                  <td>{event.colleges?.name}</td>
+                  <td>{new Date(event[FIELDS.EVENT_DATE]).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}</td>
+                  <td style={{ color: 'var(--text-accent)', fontWeight: 500 }}>{event[TABLES.EVENT_TYPES]?.[FIELDS.NAME]}</td>
+                  <td>{event[TABLES.COLLEGES]?.[FIELDS.NAME]}</td>
                   <td>
                     <button className="btn btn-ghost btn-sm" onClick={() => openDetail(event)}>
                       <Eye size={14} /> View
@@ -102,22 +103,22 @@ export default function EventHistoryPage() {
                 <X size={18} />
               </button>
             </div>
-            <div className="modal-body">
+             <div className="modal-body">
               <div className="form-row" style={{ marginBottom: 'var(--space-5)' }}>
                 <div>
                   <p style={{ fontSize: 'var(--font-sm)', color: 'var(--text-muted)' }}>Date</p>
-                  <p style={{ fontWeight: 600 }}>{new Date(detail.event_date).toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' })}</p>
+                  <p style={{ fontWeight: 600 }}>{new Date(detail[FIELDS.EVENT_DATE]).toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' })}</p>
                 </div>
                 <div>
                   <p style={{ fontSize: 'var(--font-sm)', color: 'var(--text-muted)' }}>College</p>
-                  <p style={{ fontWeight: 600 }}>{detail.colleges?.name}</p>
+                  <p style={{ fontWeight: 600 }}>{detail[TABLES.COLLEGES]?.[FIELDS.NAME]}</p>
                 </div>
               </div>
 
-              {detail.speaker_feedback && (
+              {detail[FIELDS.SPEAKER_FEEDBACK] && (
                 <div style={{ marginBottom: 'var(--space-5)' }}>
                   <p style={{ fontSize: 'var(--font-sm)', color: 'var(--text-muted)', marginBottom: 4 }}>Speaker Feedback</p>
-                  <p style={{ fontWeight: 500, fontSize: 'var(--font-sm)', padding: 'var(--space-3)', background: 'var(--bg-input)', borderRadius: 'var(--radius-md)' }}>{detail.speaker_feedback}</p>
+                  <p style={{ fontWeight: 500, fontSize: 'var(--font-sm)', padding: 'var(--space-3)', background: 'var(--bg-input)', borderRadius: 'var(--radius-md)' }}>{detail[FIELDS.SPEAKER_FEEDBACK]}</p>
                 </div>
               )}
 
